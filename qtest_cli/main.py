@@ -104,18 +104,44 @@ def qtest_api(session, base_url, project_id, method, endpoint,
         f"{base_url.rstrip('/')}/api/v3"
         f"/projects/{project_id}{endpoint}"
     )
-    resp = getattr(session, method)(
-        url, params=params, json=json_data, timeout=60
-    )
+    try:
+        resp = getattr(session, method)(
+            url, params=params, json=json_data, timeout=60
+        )
+    except requests.exceptions.ConnectionError:
+        click.echo(
+            "Error: Cannot connect to qTest. "
+            "Check your base_url in config.yaml.",
+            err=True
+        )
+        sys.exit(1)
+    except requests.exceptions.Timeout:
+        click.echo(
+            "Error: Request timed out. "
+            "qTest server may be slow or unreachable.",
+            err=True
+        )
+        sys.exit(1)
+
     if resp.status_code == 401:
         click.echo(
-            "Error: Authentication failed. Check your API token.",
+            "Error: Authentication failed. "
+            "Check your api_token in config.yaml.",
             err=True
         )
         sys.exit(1)
     if resp.status_code == 403:
         click.echo(
-            "Error: Access denied. Verify project permissions.",
+            "Error: Access denied. "
+            "Verify project permissions for this token.",
+            err=True
+        )
+        sys.exit(1)
+    if resp.status_code == 404:
+        click.echo(
+            f"Error: Not found (404). "
+            f"Check your project_id in config.yaml. "
+            f"URL: {url}",
             err=True
         )
         sys.exit(1)
@@ -608,17 +634,10 @@ def cmd_list(ctx, path, show_all):
     default_path = (cfg.get("default_path") or "").strip().strip("/")
     resolved = (path or default_path or "").strip().strip("/")
 
-    try:
-        if not resolved:
-            _list_root(session, base_url, pid, show_all)
-        else:
-            _list_path(session, base_url, pid, resolved, show_all)
-    except requests.exceptions.ConnectionError:
-        click.echo(
-            "Error: Cannot connect to qTest. Check base_url.",
-            err=True
-        )
-        sys.exit(1)
+    if not resolved:
+        _list_root(session, base_url, pid, show_all)
+    else:
+        _list_path(session, base_url, pid, resolved, show_all)
 
 
 def _run_add_tc(session, base_url, project_id,
