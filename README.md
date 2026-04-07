@@ -124,7 +124,7 @@ With `-al`:
 ### `qtest add-tc` - Add test cases to qTest
 
 ```bash
-# Preview what will be added (no changes made)
+# Preview what will be added or updated (no changes made)
 qtest add-tc --dry-run
 
 # Push test cases from template.yaml to qTest
@@ -135,33 +135,54 @@ qtest add-tc -t my_tests.yaml
 
 # Override parent ID from config
 qtest add-tc --parent-id 456789
+
+# Always create new (skip duplicate check)
+qtest add-tc --force-new
 ```
+
+**Smart update (default):** If a test case with the same name already exists in the target folder, it is **updated** instead of creating a duplicate. The match is by name (case-insensitive).
 
 **What happens when you run `qtest add-tc`:**
 
-1. **Step 1** - Validates template.yaml (checks YAML syntax, required fields, allowed values)
-2. **Step 2** - Pushes each test case to qTest via REST API
+1. **Step 1** - Validates template.yaml (syntax, required fields, allowed values)
+2. **Step 2** - Checks existing test cases in the target folder
+3. **Step 3** - Creates new test cases or updates existing ones
 
-**Example output:**
+**Example output (mix of new and existing):**
 
 ```
 Step 1: Validating template: template.yaml
 
 Validation passed: 3 test case(s) in template.yaml
 
-Step 2: Pushing test cases
+Step 2: Checking existing test cases in target folder...
+
+  Found 4 existing test case(s)
+
+Step 3: Pushing test cases
 
   Parent ID : 456789
   Project   : 123
   Count     : 3
 ------------------------------------------------------------
-  [1] OK: TC-6659 - omnia_verify_slurm_cluster_health
-  [2] OK: TC-6660 - omnia_verify_nfs_mount_persistence
-  [3] OK: TC-6661 - omnia_slurm_job_submission_ldap_user
+  [1] UPDATED: TC-6659 - omnia_verify_slurm_cluster_health
+  [2] UPDATED: TC-6660 - omnia_verify_nfs_mount_persistence
+  [3] CREATED: TC-6670 - omnia_new_test_case
 ------------------------------------------------------------
 
-Completed successfully! 3 test case(s) added.
+Completed successfully! 1 created, 2 updated.
 ```
+
+**Dry-run shows what will happen:**
+
+```
+  [1] [UPDATE] omnia_verify_slurm_cluster_health
+  [2] [NEW] omnia_new_test_case
+
+1 to create, 1 to update.
+```
+
+Use `--force-new` to skip the duplicate check and always create new test cases.
 
 ---
 
