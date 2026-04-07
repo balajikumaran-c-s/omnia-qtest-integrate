@@ -936,11 +936,10 @@ def _tc_to_yaml_dict(tc_data, steps_data):
     return tc_dict
 
 
-def _download_folder(session, base_url, project_id,
-                     module_id, output_file):
-    """Download all test cases from a module as YAML."""
+def _fetch_module_tcs(session, base_url, project_id, module_id):
+    """Fetch all test cases from a single module (paginated)."""
     page = 1
-    all_tcs = []
+    result = []
     while True:
         resp = qtest_api(
             session, base_url, project_id, "get",
@@ -955,22 +954,49 @@ def _download_folder(session, base_url, project_id,
         batch = resp.json()
         if not batch:
             break
-        all_tcs.extend(batch)
+        result.extend(batch)
         if len(batch) < 100:
             break
         page += 1
+    return result
+
+
+def _collect_module_ids(detail):
+    """Recursively collect all module IDs from a folder tree."""
+    ids = [detail.get("id")]
+    for child in detail.get("children", []):
+        ids.extend(_collect_module_ids(child))
+    return ids
+
+
+def _download_folder(session, base_url, project_id,
+                     detail, output_file):
+    """Download all test cases recursively from a module tree."""
+    # Collect all module IDs (this folder + all sub-folders)
+    module_ids = _collect_module_ids(detail)
+    click.echo(
+        f"Scanning {len(module_ids)} folder(s) "
+        "for test cases..."
+    )
+
+    all_tcs = []
+    for mid in module_ids:
+        tcs = _fetch_module_tcs(
+            session, base_url, project_id, mid
+        )
+        all_tcs.extend(tcs)
 
     if not all_tcs:
-        click.echo("No test cases found in this folder.")
+        click.echo("No test cases found.")
         return
 
     click.echo(
-        f"Fetching {len(all_tcs)} test case(s) with steps..."
+        f"Found {len(all_tcs)} test case(s). "
+        "Fetching details and steps...\n"
     )
     yaml_tcs = []
     for tc_summary in all_tcs:
         tc_id = tc_summary["id"]
-        # Get full test case details
         detail_resp = qtest_api(
             session, base_url, project_id, "get",
             f"/test-cases/{tc_id}"
@@ -983,7 +1009,8 @@ def _download_folder(session, base_url, project_id,
         )
         yaml_tcs.append(_tc_to_yaml_dict(tc_full, steps))
         click.echo(
-            f"  [{len(yaml_tcs)}] {tc_summary.get('pid', '?')}: "
+            f"  [{len(yaml_tcs)}] "
+            f"{tc_summary.get('pid', '?')}: "
             f"{tc_summary.get('name', '?')}"
         )
 
@@ -1030,7 +1057,6 @@ def cmd_download(ctx, path, output):
     detail, display = resolve_path(
         session, base_url, pid, parts
     )
-    module_id = detail.get("id")
     folder_name = parts[-1] if parts else "test_cases"
 
     if not output:
@@ -1039,7 +1065,7 @@ def cmd_download(ctx, path, output):
 
     click.echo(f"Downloading from: {display}\n")
     _download_folder(
-        session, base_url, pid, module_id, output
+        session, base_url, pid, detail, output
     )
 
 
