@@ -60,7 +60,7 @@ test_cases:
     description: "Validate that an LDAP-authenticated user can submit and run Slurm jobs"
     precondition: "LDAP is configured, test user exists, Slurm cluster is running"
     status: "Design"
-    type: "Manual"
+    type: "Functional"
     steps:
       - description: "SSH to login node as LDAP user"
         expected: "Login succeeds without password prompt (key-based or LDAP auth)"

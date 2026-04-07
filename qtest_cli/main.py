@@ -568,6 +568,50 @@ def push_test_case(session, base_url, project_id,
     return move.json(), None
 
 
+def update_test_case(session, base_url, project_id,
+                     tc_id, payload):
+    """Update an existing test case by ID."""
+    resp = qtest_api(
+        session, base_url, project_id, "put",
+        f"/test-cases/{tc_id}", json_data=payload
+    )
+    if resp.status_code != 200:
+        return None, (
+            f"Update failed ({resp.status_code}): "
+            f"{resp.text}"
+        )
+    return resp.json(), None
+
+
+def _fetch_existing_tcs(session, base_url, project_id,
+                        parent_id):
+    """Fetch all existing test cases under parent_id. Returns name->tc map."""
+    existing = {}
+    page = 1
+    while True:
+        resp = qtest_api(
+            session, base_url, project_id, "get",
+            "/test-cases",
+            params={
+                "parentId": parent_id,
+                "page": page, "size": 100
+            }
+        )
+        if resp.status_code != 200:
+            break
+        batch = resp.json()
+        if not batch:
+            break
+        for tc_item in batch:
+            name = tc_item.get("name", "").strip()
+            if name:
+                existing[name.lower()] = tc_item
+        if len(batch) < 100:
+            break
+        page += 1
+    return existing
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -713,66 +757,119 @@ def cmd_list(ctx, path, show_all):
 
 
 def _run_add_tc(session, base_url, project_id,
-                pid, tcs, dry_run):
+                pid, tcs, dry_run, force_new):
     """Execute the add-tc push/preview loop."""
+    # Fetch existing test cases for duplicate check
+    existing = {}
+    if not force_new and not dry_run:
+        click.echo(
+            "Step 2: Checking existing test cases "
+            "in target folder...\n"
+        )
+        existing = _fetch_existing_tcs(
+            session, base_url, project_id, pid
+        )
+        click.echo(
+            f"  Found {len(existing)} existing test case(s)\n"
+        )
+        step = "Step 3"
+    else:
+        step = "Step 2"
+
     action = "Preview" if dry_run else "Pushing"
-    click.echo(f"Step 2: {action} test cases\n")
+    click.echo(f"{step}: {action} test cases\n")
     click.echo(f"  Parent ID : {pid}")
     click.echo(f"  Project   : {project_id}")
     click.echo(f"  Count     : {len(tcs)}")
+    if force_new:
+        click.echo("  Mode      : Force new (skip duplicate check)")
     if dry_run:
         click.echo("\n  [DRY RUN] No changes will be made.\n")
     click.echo("-" * 60)
 
-    ok_count, fail_count = 0, 0
+    created, updated, failed = 0, 0, 0
     for i, tc_def in enumerate(tcs, 1):
         name = tc_def.get("name", "(unnamed)")
         if dry_run:
             steps = len(tc_def.get("steps", []))
-            click.echo(f"  [{i}] {name}")
             status = tc_def.get("status", "Design")
             tc_type = tc_def.get("type", "Manual")
+            match = existing.get(name.lower()) if not force_new else None
+            tag = "UPDATE" if match else "NEW"
+            click.echo(f"  [{i}] [{tag}] {name}")
             click.echo(
                 f"      Status: {status} | "
                 f"Type: {tc_type} | Steps: {steps}"
             )
-            ok_count += 1
+            if tag == "UPDATE":
+                updated += 1
+            else:
+                created += 1
             continue
 
         payload, err = build_payload(tc_def)
         if err:
             click.echo(f"  [{i}] SKIP: {name} - {err}")
-            fail_count += 1
+            failed += 1
             continue
 
-        result, err = push_test_case(
-            session, base_url, project_id, pid, payload
-        )
-        if err:
-            click.echo(f"  [{i}] FAIL: {name} - {err}")
-            fail_count += 1
+        # Check if test case already exists
+        match = existing.get(name.lower()) if not force_new else None
+
+        if match:
+            tc_id = match.get("id")
+            tc_pid = match.get("pid", "?")
+            result, err = update_test_case(
+                session, base_url, project_id,
+                tc_id, payload
+            )
+            if err:
+                click.echo(
+                    f"  [{i}] FAIL (update): "
+                    f"{name} - {err}"
+                )
+                failed += 1
+            else:
+                click.echo(
+                    f"  [{i}] UPDATED: {tc_pid} - {name}"
+                )
+                updated += 1
         else:
-            tc_pid = result.get("pid", "?")
-            click.echo(f"  [{i}] OK: {tc_pid} - {name}")
-            ok_count += 1
+            result, err = push_test_case(
+                session, base_url, project_id, pid, payload
+            )
+            if err:
+                click.echo(
+                    f"  [{i}] FAIL (create): "
+                    f"{name} - {err}"
+                )
+                failed += 1
+            else:
+                tc_pid = result.get("pid", "?")
+                click.echo(
+                    f"  [{i}] CREATED: {tc_pid} - {name}"
+                )
+                created += 1
 
     click.echo("-" * 60)
     _print_add_tc_summary(
-        ok_count, fail_count, dry_run, base_url, project_id, pid
+        created, updated, failed, dry_run,
+        base_url, project_id, pid
     )
 
 
-def _print_add_tc_summary(ok_count, fail_count, dry_run,
-                          base_url, project_id, pid):
+def _print_add_tc_summary(created, updated, failed,
+                          dry_run, base_url, project_id, pid):
     """Print the final summary after add-tc."""
     if dry_run:
         click.echo(
-            f"\n{ok_count} test case(s) would be created."
+            f"\n{created} to create, "
+            f"{updated} to update."
         )
-    elif fail_count == 0:
+    elif failed == 0:
         click.echo(
             f"\nCompleted successfully! "
-            f"{ok_count} test case(s) added."
+            f"{created} created, {updated} updated."
         )
         click.echo("\nVerify with:")
         click.echo(
@@ -786,7 +883,8 @@ def _print_add_tc_summary(ok_count, fail_count, dry_run,
         )
     else:
         click.echo(
-            f"\n{ok_count} succeeded, {fail_count} failed."
+            f"\n{created} created, {updated} updated, "
+            f"{failed} failed."
         )
 
 
@@ -803,13 +901,19 @@ def _print_add_tc_summary(ok_count, fail_count, dry_run,
     "-d", "--dry-run", is_flag=True, default=False,
     help="Preview only, no changes."
 )
+@click.option(
+    "--force-new", is_flag=True, default=False,
+    help="Always create new test cases (skip duplicate check)."
+)
 @click.pass_context
-def cmd_add_tc(ctx, template, parent_id, dry_run):
+def cmd_add_tc(ctx, template, parent_id, dry_run, force_new):
     """
     Add test cases from a YAML template to qTest.
 
     \b
-    Validates the template first, then pushes test cases.
+    By default, if a test case with the same name already
+    exists in the target folder, it will be UPDATED instead
+    of creating a duplicate. Use --force-new to always create.
 
     \b
     Examples:
@@ -817,6 +921,7 @@ def cmd_add_tc(ctx, template, parent_id, dry_run):
       qtest add-tc -t my_tests.yaml
       qtest add-tc --parent-id 456789
       qtest add-tc --dry-run
+      qtest add-tc --force-new
     """
     cfg = load_config(ctx.obj["cfg_path"])
     pid = parent_id or cfg.get("parent_id")
@@ -842,7 +947,7 @@ def cmd_add_tc(ctx, template, parent_id, dry_run):
     session = _create_session(cfg)
     _run_add_tc(
         session, cfg["base_url"], cfg["project_id"],
-        pid, tcs, dry_run
+        pid, tcs, dry_run, force_new
     )
 
 
