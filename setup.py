@@ -12,10 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from setuptools import setup, find_packages
+"""Setup script for qtest-cli package."""
 
-with open("requirements.txt") as f:
-    requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+from setuptools import setup, find_packages  # pylint: disable=import-error
+
+with open("requirements.txt", encoding="utf-8") as req_file:
+    REQUIREMENTS = [
+        line.strip() for line in req_file
+        if line.strip() and not line.startswith("#")
+    ]
 
 setup(
     name="qtest-cli",
@@ -23,7 +28,7 @@ setup(
     description="CLI tool for qTest Manager - list folders and add test cases",
     packages=find_packages(),
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=REQUIREMENTS,
     entry_points={
         "console_scripts": [
             "qtest=qtest_cli.main:main",
