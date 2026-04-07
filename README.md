@@ -175,6 +175,43 @@ Shows your config with API token masked.
 
 ---
 
+### `qtest download` - Download test cases as YAML
+
+```bash
+# Download all test cases from a folder (recursively includes sub-folders)
+qtest download "Omnia-2.X/Slurm Cluster/Passwordless SSH"
+
+# Folder names with spaces work without quotes too
+qtest download Omnia-2.X/Service K8S Cluster
+
+# Save to a specific file
+qtest download "Omnia-2.X/Slurm Cluster" -o slurm_tests.yaml
+```
+
+**What it does:**
+1. Scans the folder and all sub-folders recursively
+2. Fetches every test case with full details and steps
+3. Writes them to a YAML file in the same format as `template.yaml`
+
+**Example output:**
+```
+Downloading from: Omnia-2.X/Service K8S Cluster
+
+Scanning 9 folder(s) for test cases...
+Found 141 test case(s). Fetching details and steps...
+
+  [1] TC-4748: omnia_k8s_HA_kubelet_service_validation
+  [2] TC-4750: omnia_k8s_HA_etcd_validation
+  ...
+  [141] TC-5270: omnia_service_k8s_crio_service_worker_node_validation
+
+Downloaded 141 test case(s) to service_k8s_cluster.yaml
+```
+
+The downloaded YAML can be edited and re-uploaded with `qtest add-tc -t downloaded_file.yaml`.
+
+---
+
 ## Template format
 
 Write test cases in `template.yaml`:
@@ -193,6 +230,35 @@ test_cases:
         expected: "All nodes show idle state within 5 minutes"
       - description: "Submit a test job: srun -N2 hostname"
         expected: "Job completes successfully"
+```
+
+### Precondition as a list
+
+If you have multiple preconditions, use a YAML list. They will appear numbered in qTest UI:
+
+```yaml
+    precondition:
+      - "Slurm cluster is deployed"
+      - "All nodes are in idle state"
+      - "LDAP server is running"
+```
+
+In qTest this renders as:
+```
+1. Slurm cluster is deployed
+2. All nodes are in idle state
+3. LDAP server is running
+```
+
+### Steps without expected result
+
+`expected` is optional. Skip it for setup steps where the result is obvious:
+
+```yaml
+    steps:
+      - description: "Stop the slurmctld service"
+      - description: "Attempt to add a new compute node"
+        expected: "Clear error message indicating controller is unreachable"
 ```
 
 ### Fields
@@ -233,19 +299,25 @@ The tool validates the template **before** pushing anything. It catches:
 - **YAML syntax errors** with exact line and column number
 - **Missing required fields** (name, description, precondition, status, type, steps)
 - **Invalid status/type** not in the allowed list from config.yaml
+- **Unknown fields** in test case or steps (e.g. `priority`, `author`, `notes`)
 - **Bad indentation** in steps
 - **Empty fields**
+
+Only these fields are allowed in a test case: `name`, `description`, `precondition`, `status`, `type`, `steps`
+
+Only these fields are allowed in a step: `description`, `expected`
 
 If validation fails, nothing gets pushed:
 
 ```
 Validation FAILED for: template.yaml
 
-  [1] test_cases[1]: 'name' is required and must be a non-empty string.
-  [2] test_cases[2] (my_test): Invalid status 'Foo'. Allowed: design, new, ready, ...
-  [3] test_cases[3].steps[2]: 'description' is required for each step.
+  [1] test_cases[1]: Unknown field(s): author, priority. Allowed: description, name, precondition, status, steps, type
+  [2] test_cases[1] (my_test): Invalid status 'Foo'. Allowed: design
+  [3] test_cases[2].steps[1]: Unknown field(s): notes. Allowed: description, expected
+  [4] test_cases[3].steps[2]: 'description' is required for each step.
 
-3 error(s) found. Fix the template and try again.
+4 error(s) found. Fix the template and try again.
 ```
 
 ---
