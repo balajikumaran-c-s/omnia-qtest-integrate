@@ -678,7 +678,7 @@ def _list_path(session, base_url, pid, resolved, show_all):
 
 
 @cli.command("list")
-@click.argument("path", required=False, default=None)
+@click.argument("path", nargs=-1)
 @click.option(
     "-al", "show_all", is_flag=True,
     default=False, help="Include test case titles."
@@ -692,7 +692,9 @@ def cmd_list(ctx, path, show_all):
     Examples:
       qtest ls
       qtest ls "Omnia-2.X"
+      qtest ls Omnia-2.X
       qtest ls "Omnia-2.X/Slurm Cluster"
+      qtest ls Omnia-2.X/Service K8S Cluster
       qtest ls -al "Omnia-2.X/Slurm Cluster"
     """
     cfg = load_config(ctx.obj["cfg_path"])
@@ -700,7 +702,9 @@ def cmd_list(ctx, path, show_all):
     base_url = cfg["base_url"]
     pid = cfg["project_id"]
     default_path = (cfg.get("default_path") or "").strip().strip("/")
-    resolved = (path or default_path or "").strip().strip("/")
+    # Join multiple args: "Omnia-2.X/Service" "K8S" "Cluster" -> "Omnia-2.X/Service K8S Cluster"
+    raw_path = " ".join(path) if path else ""
+    resolved = (raw_path or default_path or "").strip().strip("/")
 
     if not resolved:
         _list_root(session, base_url, pid, show_all)
@@ -996,7 +1000,7 @@ def _download_folder(session, base_url, project_id,
 
 
 @cli.command("download")
-@click.argument("path")
+@click.argument("path", nargs=-1, required=True)
 @click.option(
     "-o", "--output", default=None,
     help="Output YAML file (default: <folder_name>.yaml)."
@@ -1013,6 +1017,7 @@ def cmd_download(ctx, path, output):
     \b
     Examples:
       qtest download "Omnia-2.X/Slurm Cluster/add-delete node"
+      qtest download Omnia-2.X/Slurm Cluster/Passwordless SSH
       qtest download "Omnia-2.X/Slurm Cluster/Passwordless SSH" -o ssh_tests.yaml
     """
     cfg = load_config(ctx.obj["cfg_path"])
@@ -1020,7 +1025,8 @@ def cmd_download(ctx, path, output):
     base_url = cfg["base_url"]
     pid = cfg["project_id"]
 
-    parts = [p.strip() for p in path.split("/") if p.strip()]
+    raw_path = " ".join(path) if path else ""
+    parts = [p.strip() for p in raw_path.split("/") if p.strip()]
     detail, display = resolve_path(
         session, base_url, pid, parts
     )
