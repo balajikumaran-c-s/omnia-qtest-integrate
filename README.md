@@ -276,22 +276,12 @@ omnia-qtest-integrate/
 ├── requirements.txt        # Dependencies
 ├── config.yaml             # Your qTest connection settings
 ├── template.yaml           # Test cases to push
-├── .pylintrc               # Pylint config (score: 10/10)
-├── rules.md                # Test case writing rules
 ├── README.md
 ├── .gitignore
 └── qtest_cli/
     ├── __init__.py
     └── main.py             # CLI implementation
 ```
-
----
-
-## Reference
-
-| File | What it contains |
-|---|---|
-| `rules.md` | Rules for classifying test cases as Functional, Regression, or Negative |
 
 ---
 
