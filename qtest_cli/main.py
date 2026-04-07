@@ -306,6 +306,13 @@ def _validate_yaml_syntax(template_path):
         return None, msg
 
 
+ALLOWED_TC_FIELDS = {
+    "name", "description", "precondition",
+    "status", "type", "steps",
+}
+ALLOWED_STEP_FIELDS = {"description", "expected"}
+
+
 def _validate_tc_fields(tc, idx, valid_statuses, valid_types):
     """Validate fields of a single test case. Returns list of errors."""
     errors = []
@@ -318,6 +325,14 @@ def _validate_tc_fields(tc, idx, valid_statuses, valid_types):
         )
         return errors
 
+    # Check for unknown fields
+    unknown = set(tc.keys()) - ALLOWED_TC_FIELDS
+    if unknown:
+        errors.append(
+            f"{prefix}: Unknown field(s): {', '.join(sorted(unknown))}. "
+            f"Allowed: {', '.join(sorted(ALLOWED_TC_FIELDS))}"
+        )
+
     name = tc.get("name")
     if not name or not isinstance(name, str) or not name.strip():
         errors.append(
@@ -326,12 +341,35 @@ def _validate_tc_fields(tc, idx, valid_statuses, valid_types):
         )
     display = (name or "(unnamed)").strip()[:50]
 
-    for field in ["description", "precondition"]:
-        val = tc.get(field)
-        if not val or not isinstance(val, str) or not val.strip():
+    # description - required, string
+    desc = tc.get("description")
+    if not desc or not isinstance(desc, str) or not desc.strip():
+        errors.append(
+            f"{prefix} ({display}): 'description' is required."
+        )
+
+    # precondition - required, string or list of strings
+    precond = tc.get("precondition")
+    if precond is None:
+        errors.append(
+            f"{prefix} ({display}): 'precondition' is required."
+        )
+    elif isinstance(precond, list):
+        for pi, item in enumerate(precond, 1):
+            if not isinstance(item, str) or not item.strip():
+                errors.append(
+                    f"{prefix} ({display}): "
+                    f"precondition[{pi}] must be a non-empty string."
+                )
+        if len(precond) == 0:
             errors.append(
-                f"{prefix} ({display}): '{field}' is required."
+                f"{prefix} ({display}): "
+                "'precondition' list must not be empty."
             )
+    elif not isinstance(precond, str) or not precond.strip():
+        errors.append(
+            f"{prefix} ({display}): 'precondition' is required."
+        )
 
     status = tc.get("status")
     if not status or not isinstance(status, str) or not status.strip():
@@ -378,12 +416,21 @@ def _validate_steps(steps, prefix, display):
                 "check indentation."
             )
             continue
+        # Check for unknown fields in step
+        unknown = set(step.keys()) - ALLOWED_STEP_FIELDS
+        if unknown:
+            errors.append(
+                f"{step_prefix}: Unknown field(s): "
+                f"{', '.join(sorted(unknown))}. "
+                f"Allowed: {', '.join(sorted(ALLOWED_STEP_FIELDS))}"
+            )
         step_desc = step.get("description")
         if not step_desc or not isinstance(step_desc, str):
             errors.append(
                 f"{step_prefix}: 'description' is required "
                 "for each step."
             )
+        # expected is optional - no validation needed
     return errors
 
 
@@ -443,6 +490,20 @@ def print_validation_result(errors, template_path, tc_count):
 # ---------------------------------------------------------------------------
 # Test case creation
 # ---------------------------------------------------------------------------
+def _format_precondition(precond):
+    """Format precondition as numbered HTML list if it's a list."""
+    if isinstance(precond, list):
+        items = [
+            f"{i}. {item.strip()}"
+            for i, item in enumerate(precond, 1)
+            if isinstance(item, str) and item.strip()
+        ]
+        return "<p>" + "<br/>".join(items) + "</p>"
+    if isinstance(precond, str) and precond.strip():
+        return f"<p>{precond.strip()}</p>"
+    return ""
+
+
 def build_payload(tc_def):
     """Convert a template test case into a qTest API payload."""
     name = tc_def.get("name", "").strip()
@@ -461,18 +522,24 @@ def build_payload(tc_def):
     }
     if tc_def.get("description"):
         payload["description"] = f"<p>{tc_def['description']}</p>"
-    if tc_def.get("precondition"):
-        payload["precondition"] = f"<p>{tc_def['precondition']}</p>"
+    precond = tc_def.get("precondition")
+    if precond:
+        payload["precondition"] = _format_precondition(precond)
     steps = tc_def.get("steps", [])
     if steps:
-        payload["test_steps"] = [
-            {
-                "description": f"<p>{s.get('description', '')}</p>",
-                "expected": f"<p>{s.get('expected', '')}</p>",
+        test_steps = []
+        for i, step in enumerate(steps, 1):
+            step_data = {
+                "description": (
+                    f"<p>{step.get('description', '')}</p>"
+                ),
                 "order": i,
             }
-            for i, s in enumerate(steps, 1)
-        ]
+            expected = step.get("expected")
+            if expected and isinstance(expected, str) and expected.strip():
+                step_data["expected"] = f"<p>{expected}</p>"
+            test_steps.append(step_data)
+        payload["test_steps"] = test_steps
     return payload, None
 
 
@@ -532,6 +599,7 @@ def cli(ctx, config):
     Commands:
       list (ls)     List test design folders as a tree
       add-tc        Add test cases from a YAML template
+      download      Download test cases from a folder as YAML
       show-config   Show current configuration
     """
     ctx.ensure_object(dict)
@@ -791,6 +859,182 @@ def cmd_show_config(ctx):
     parent_id = cfg.get("parent_id") or "(none)"
     click.echo(f"  Default Path: {default_path}")
     click.echo(f"  Parent ID   : {parent_id}")
+
+
+# ---------------------------------------------------------------------------
+# Download test cases
+# ---------------------------------------------------------------------------
+def _strip_html(text):
+    """Remove HTML tags from a string."""
+    if not text:
+        return ""
+    import re  # pylint: disable=import-outside-toplevel
+    clean = re.sub(r'<[^>]+>', '', str(text))
+    return clean.strip()
+
+
+def _fetch_tc_steps(session, base_url, project_id, tc_data):
+    """Fetch test steps for a test case."""
+    version_id = tc_data.get("test_case_version_id")
+    tc_id = tc_data.get("id")
+    if not version_id:
+        return []
+    resp = qtest_api(
+        session, base_url, project_id, "get",
+        f"/test-cases/{tc_id}/versions/{version_id}/test-steps"
+    )
+    if resp.status_code != 200:
+        return []
+    return resp.json() if isinstance(resp.json(), list) else []
+
+
+def _tc_to_yaml_dict(tc_data, steps_data):
+    """Convert a qTest test case + steps to a template-format dict."""
+    # Extract status and type from properties
+    status = "design"
+    tc_type = "manual"
+    for prop in tc_data.get("properties", []):
+        if prop.get("field_id") == FIELD_STATUS:
+            val_name = prop.get("field_value_name", "")
+            if val_name:
+                status = val_name.lower()
+        elif prop.get("field_id") == FIELD_TYPE:
+            val_name = prop.get("field_value_name", "")
+            if val_name:
+                tc_type = val_name.lower()
+
+    precondition = _strip_html(
+        tc_data.get("precondition", "")
+    )
+
+    tc_dict = {
+        "name": tc_data.get("name", ""),
+        "description": _strip_html(
+            tc_data.get("description", "")
+        ),
+        "precondition": precondition if precondition else "N/A",
+        "status": status,
+        "type": tc_type,
+        "steps": [],
+    }
+
+    for step in sorted(steps_data, key=lambda s: s.get("order", 0)):
+        step_dict = {
+            "description": _strip_html(
+                step.get("description", "")
+            ),
+        }
+        expected = _strip_html(step.get("expected", ""))
+        if expected:
+            step_dict["expected"] = expected
+        tc_dict["steps"].append(step_dict)
+
+    return tc_dict
+
+
+def _download_folder(session, base_url, project_id,
+                     module_id, output_file):
+    """Download all test cases from a module as YAML."""
+    page = 1
+    all_tcs = []
+    while True:
+        resp = qtest_api(
+            session, base_url, project_id, "get",
+            "/test-cases",
+            params={
+                "parentId": module_id,
+                "page": page, "size": 100
+            }
+        )
+        if resp.status_code != 200:
+            break
+        batch = resp.json()
+        if not batch:
+            break
+        all_tcs.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+
+    if not all_tcs:
+        click.echo("No test cases found in this folder.")
+        return
+
+    click.echo(
+        f"Fetching {len(all_tcs)} test case(s) with steps..."
+    )
+    yaml_tcs = []
+    for tc_summary in all_tcs:
+        tc_id = tc_summary["id"]
+        # Get full test case details
+        detail_resp = qtest_api(
+            session, base_url, project_id, "get",
+            f"/test-cases/{tc_id}"
+        )
+        if detail_resp.status_code != 200:
+            continue
+        tc_full = detail_resp.json()
+        steps = _fetch_tc_steps(
+            session, base_url, project_id, tc_full
+        )
+        yaml_tcs.append(_tc_to_yaml_dict(tc_full, steps))
+        click.echo(
+            f"  [{len(yaml_tcs)}] {tc_summary.get('pid', '?')}: "
+            f"{tc_summary.get('name', '?')}"
+        )
+
+    output = {"test_cases": yaml_tcs}
+    with open(output_file, "w", encoding="utf-8") as out:
+        yaml.dump(
+            output, out, default_flow_style=False,
+            allow_unicode=True, sort_keys=False
+        )
+    click.echo(
+        f"\nDownloaded {len(yaml_tcs)} test case(s) "
+        f"to {output_file}"
+    )
+
+
+@cli.command("download")
+@click.argument("path")
+@click.option(
+    "-o", "--output", default=None,
+    help="Output YAML file (default: <folder_name>.yaml)."
+)
+@click.pass_context
+def cmd_download(ctx, path, output):
+    """
+    Download test cases from a folder as YAML.
+
+    \b
+    Exports test cases in the same format as template.yaml
+    so you can view, edit, or re-upload them.
+
+    \b
+    Examples:
+      qtest download "Omnia-2.X/Slurm Cluster/add-delete node"
+      qtest download "Omnia-2.X/Slurm Cluster/Passwordless SSH" -o ssh_tests.yaml
+    """
+    cfg = load_config(ctx.obj["cfg_path"])
+    session = _create_session(cfg)
+    base_url = cfg["base_url"]
+    pid = cfg["project_id"]
+
+    parts = [p.strip() for p in path.split("/") if p.strip()]
+    detail, display = resolve_path(
+        session, base_url, pid, parts
+    )
+    module_id = detail.get("id")
+    folder_name = parts[-1] if parts else "test_cases"
+
+    if not output:
+        safe_name = folder_name.replace(" ", "_").lower()
+        output = f"{safe_name}.yaml"
+
+    click.echo(f"Downloading from: {display}\n")
+    _download_folder(
+        session, base_url, pid, module_id, output
+    )
 
 
 def main():

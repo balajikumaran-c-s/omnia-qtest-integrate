@@ -70,7 +70,7 @@ _qtest_completion() {
     local cur prev commands
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="ls list add-tc show-config"
+    commands="ls list add-tc download show-config"
 
     case "$prev" in
         qtest)
@@ -81,6 +81,9 @@ _qtest_completion() {
             ;;
         add-tc)
             COMPREPLY=( $(compgen -W "--dry-run --template --parent-id --help -t -p -d" -- "$cur") )
+            ;;
+        download)
+            COMPREPLY=( $(compgen -W "--output --help -o" -- "$cur") )
             ;;
         -t|--template)
             COMPREPLY=( $(compgen -f -X '!*.yaml' -- "$cur") $(compgen -f -X '!*.yml' -- "$cur") )
