@@ -36,17 +36,8 @@ qtest:
 allowed:
   status:
     - design
-    - new
-    - ready
-    - approved
-    - draft
-    - in review
 
   type:
-    - manual
-    - automation
-    - performance
     - functional
     - regression
     - negative
-    - scenario

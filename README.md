@@ -47,6 +47,14 @@ qtest:
   project_id: 123
   default_path: ""
   parent_id: 456789
+
+allowed:
+  status:
+    - design
+  type:
+    - functional
+    - regression
+    - negative
 ```
 
 **How to get each value:**
@@ -204,24 +212,15 @@ test_cases:
 
 | Value | When to use |
 |---|---|
-| `design` | New test case, still being written **(default)** |
-| `new` | Just created, not yet reviewed |
-| `ready` | Reviewed and ready for execution |
-| `approved` | Formally approved |
-| `draft` | Work in progress |
-| `in review` | Under review |
+| `design` | All new test cases use this status |
 
 ### Allowed values for `type`
 
 | Value | When to use |
 |---|---|
-| `manual` | Manually executed test case |
-| `automation` | Automated test case |
 | `functional` | Validates a feature works correctly (happy path) |
 | `regression` | Validates existing features still work after a change |
 | `negative` | Validates error handling, invalid inputs, failure scenarios |
-| `performance` | Load, stress, or performance testing |
-| `scenario` | End-to-end scenario across multiple features |
 
 You can modify these lists in the `allowed:` section of `config.yaml`.
 
