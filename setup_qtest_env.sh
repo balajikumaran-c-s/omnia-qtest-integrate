@@ -52,10 +52,11 @@ source "$VENV_DIR/bin/activate"
 pip install --quiet --upgrade pip
 pip install --quiet -e "$SCRIPT_DIR"
 
-# Create wrapper script at /usr/local/bin/qtest
-echo "[3/3] Creating 'qtest' command..."
-WRAPPER="/usr/local/bin/qtest"
-cat > "$WRAPPER" << 'WRAPPER_EOF'
+# Create wrapper script at /usr/local/bin/qtest (Linux/macOS only)
+if [ -d "/usr/local/bin" ]; then
+        echo "[3/4] Creating 'qtest' command at /usr/local/bin/qtest..."
+    WRAPPER="/usr/local/bin/qtest"
+    cat > "$WRAPPER" << 'WRAPPER_EOF'
 #!/bin/bash
 VENV_PYTHON="VENV_DIR_PLACEHOLDER/.venv/bin/python"
 exec "$VENV_PYTHON" -m qtest_cli.main "$@"
@@ -63,8 +64,8 @@ WRAPPER_EOF
 sed -i "s|VENV_DIR_PLACEHOLDER|$SCRIPT_DIR|g" "$WRAPPER"
 chmod +x "$WRAPPER"
 
-# Enable bash tab completion
-COMPLETION_SCRIPT="$SCRIPT_DIR/.qtest-complete.bash"
+    echo "[4/4] Setting up tab completion..."
+    COMPLETION_SCRIPT="$SCRIPT_DIR/.qtest-complete.bash"
 cat > "$COMPLETION_SCRIPT" << 'COMP_EOF'
 _qtest_completion() {
     local cur prev commands
@@ -99,17 +100,21 @@ _qtest_completion() {
 complete -F _qtest_completion qtest
 COMP_EOF
 
-# Add completion to bashrc if not already there
-BASHRC="$HOME/.bashrc"
-COMP_LINE="source $COMPLETION_SCRIPT"
-if ! grep -qF "$COMP_LINE" "$BASHRC" 2>/dev/null; then
-    echo "" >> "$BASHRC"
-    echo "# qtest CLI tab completion" >> "$BASHRC"
-    echo "$COMP_LINE" >> "$BASHRC"
-fi
+    # Add completion to bashrc if not already there
+    BASHRC="$HOME/.bashrc"
+    COMP_LINE="source $COMPLETION_SCRIPT"
+    if ! grep -qF "$COMP_LINE" "$BASHRC" 2>/dev/null; then
+        echo "" >> "$BASHRC"
+        echo "# qtest CLI tab completion" >> "$BASHRC"
+        echo "$COMP_LINE" >> "$BASHRC"
+    fi
 
-# Source completion for current session
-source "$COMPLETION_SCRIPT"
+    # Source completion for current session
+    source "$COMPLETION_SCRIPT"
+else
+    echo "[3/4] Skipping system wrapper (not Linux/macOS)"
+    echo "       Use: source .venv/bin/activate && qtest"
+fi
 
 echo ""
 echo "============================================"

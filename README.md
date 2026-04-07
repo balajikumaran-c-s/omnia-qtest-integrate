@@ -6,6 +6,8 @@ CLI tool to connect to **qTest Manager** via REST API. Browse test design folder
 
 ## Installation
 
+### Linux / macOS
+
 ```bash
 git clone git@github.com:balajikumaran-c-s/omnia-qtest-integrate.git
 cd omnia-qtest-integrate
@@ -15,9 +17,22 @@ cd omnia-qtest-integrate
 This will:
 1. Create a Python virtual environment (`.venv/`)
 2. Install all dependencies
-3. Register `qtest` as a system command with tab completion
+3. Register `qtest` as a system command (works without activating venv)
+4. Enable tab completion (`qtest` + TAB shows `ls`, `add-tc`, `download`, etc.)
 
-After setup, `qtest` works from any terminal. No need to activate venv manually.
+### Windows
+
+```cmd
+git clone git@github.com:balajikumaran-c-s/omnia-qtest-integrate.git
+cd omnia-qtest-integrate
+setup_qtest_env.bat
+```
+
+After setup on Windows:
+```cmd
+.venv\Scripts\activate.bat
+qtest --help
+```
 
 ---
 
@@ -256,7 +271,8 @@ Validation FAILED for: template.yaml
 
 ```
 omnia-qtest-integrate/
-├── setup_qtest_env.sh      # Run this to install
+├── setup_qtest_env.sh      # Setup script (Linux/macOS)
+├── setup_qtest_env.bat     # Setup script (Windows)
 ├── setup.py                # Python package config
 ├── requirements.txt        # Dependencies
 ├── config.yaml             # Your qTest connection settings
@@ -282,7 +298,13 @@ omnia-qtest-integrate/
 
 ## Uninstall
 
+**Linux/macOS:**
 ```bash
 rm /usr/local/bin/qtest
 rm -rf .venv
+```
+
+**Windows:**
+```cmd
+rmdir /s /q .venv
 ```
