@@ -31,48 +31,67 @@ if errorlevel 1 (
 )
 
 for /f "tokens=*" %%i in ('python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"') do set PYTHON_VERSION=%%i
+
+REM Get project dir without trailing backslash
+set PROJECT_DIR=%~dp0
+if "%PROJECT_DIR:~-1%"=="\" set PROJECT_DIR=%PROJECT_DIR:~0,-1%
+
 echo   Python version : %PYTHON_VERSION%
-echo   Project dir    : %~dp0
+echo   Project dir    : %PROJECT_DIR%
 echo.
 
 REM Create venv
-set VENV_DIR=%~dp0.venv
+set VENV_DIR=%PROJECT_DIR%\.venv
 
 if exist "%VENV_DIR%" (
-    echo [1/2] Virtual environment already exists
+    echo [1/3] Virtual environment already exists
 ) else (
-    echo [1/2] Creating virtual environment...
+    echo [1/3] Creating virtual environment...
     python -m venv "%VENV_DIR%"
 )
 
-REM Activate and install
-echo [2/2] Installing dependencies...
+REM Activate
+echo [2/3] Activating virtual environment...
 call "%VENV_DIR%\Scripts\activate.bat"
-pip install --quiet --upgrade pip
-pip install --quiet -e "%~dp0"
 
-echo.
-echo ============================================
-echo   Setup complete!
-echo ============================================
-echo.
-echo   Virtual env: %VENV_DIR%
-echo.
-echo   To activate the virtual environment:
-echo     %VENV_DIR%\Scripts\activate.bat
-echo.
-echo   To deactivate:
-echo     deactivate
-echo.
-echo   After activating, the 'qtest' command is available:
-echo     qtest --help
-echo     qtest ls
-echo     qtest add-tc --dry-run
-echo     qtest download "Omnia-2.X/Slurm Cluster"
-echo.
-echo   Next steps:
-echo.
-echo   1. Edit config.yaml with your qTest details
-echo   2. Activate venv: %VENV_DIR%\Scripts\activate.bat
-echo   3. Test: qtest ls
-echo.
+REM Install using python -m pip (avoids pip wrapper issues on Windows)
+echo [3/3] Installing dependencies...
+python -m pip install --quiet --upgrade pip
+python -m pip install --quiet -r "%PROJECT_DIR%\requirements.txt"
+python -m pip install --quiet -e "%PROJECT_DIR%"
+
+REM Verify qtest is installed
+where qtest >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo   WARNING: 'qtest' command not found.
+    echo   Try: python -m qtest_cli.main --help
+    echo.
+) else (
+    echo.
+    echo ============================================
+    echo   Setup complete!
+    echo ============================================
+    echo.
+    echo   Virtual env: %VENV_DIR%
+    echo.
+    echo   To activate the virtual environment:
+    echo     %VENV_DIR%\Scripts\activate.bat
+    echo.
+    echo   To deactivate:
+    echo     deactivate
+    echo.
+    echo   Commands:
+    echo     qtest --help
+    echo     qtest ls
+    echo     qtest ls -al "Omnia-2.X/Slurm Cluster"
+    echo     qtest add-tc --dry-run
+    echo     qtest add-tc
+    echo     qtest download "Omnia-2.X/Slurm Cluster"
+    echo     qtest show-config
+    echo.
+    echo   Next steps:
+    echo     1. Edit config.yaml with your qTest URL, token, project ID
+    echo     2. Test: qtest ls
+    echo.
+)
