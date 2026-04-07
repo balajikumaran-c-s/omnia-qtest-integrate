@@ -31,7 +31,7 @@ L = "└── "
 P = "│   "
 B = "    "
 
-# qTest field IDs (project 183)
+# qTest field IDs - update these for your project
 FIELD_STATUS = 36712
 FIELD_TYPE = 36713
 
@@ -404,7 +404,7 @@ def cmd_add_tc(ctx, template, parent_id, dry_run):
     Examples:
       qtest add-tc                              # uses template.yaml + config parent_id
       qtest add-tc -t my_tests.yaml             # custom template
-      qtest add-tc --parent-id 1273930          # override parent
+      qtest add-tc --parent-id 456789          # override parent
       qtest add-tc --dry-run                    # preview only
     """
     cfg = load_config(ctx.obj["cfg_path"])

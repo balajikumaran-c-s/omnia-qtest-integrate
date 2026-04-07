@@ -43,22 +43,22 @@ Open `config.yaml` and fill in your qTest details:
 ```yaml
 qtest:
   # Your qTest instance URL
-  base_url: "https://qtest.gtie.dell.com"
+  base_url: "https://your-company.qtestnet.com"
 
   # Bearer token from qTest
   # Go to: qTest -> Profile (top-right) -> API & SDK -> Generate Token
-  api_token: "a4ddcddf-eba1-49e5-ba61-d64622c78185"
+  api_token: "YOUR_BEARER_TOKEN_HERE"
 
   # Project ID - from the qTest URL
-  # Example: https://qtest.gtie.dell.com/p/183/portal/... -> project_id: 183
-  project_id: 183
+  # Example: https://your-company.qtestnet.com/p/123/portal/... -> project_id: 123
+  project_id: 123
 
   # Default folder path for 'qtest ls' (optional, leave empty for root)
   default_path: ""
 
   # Parent ID for 'qtest add-tc' - where test cases will be created
-  # From the qTest URL: ...#id=1273930&tab=testdesign -> parent_id: 1273930
-  parent_id: 1273930
+  # From the qTest URL: ...#id=456789&tab=testdesign -> parent_id: 456789
+  parent_id: 456789
 
 # Allowed values for template validation
 # You can add or remove values to match your qTest project settings
@@ -85,10 +85,10 @@ allowed:
 
 | Field | How to find it |
 |---|---|
-| `base_url` | Your qTest URL, e.g. `https://qtest.company.com` |
+| `base_url` | Your qTest URL, e.g. `https://your-company.qtestnet.com` |
 | `api_token` | qTest -> click your profile (top-right) -> API & SDK -> Generate Token |
-| `project_id` | From URL: `https://qtest.company.com/p/`**183**`/portal/...` |
-| `parent_id` | Open a folder in Test Design, look at URL: `...#id=`**1273930**`&tab=testdesign` |
+| `project_id` | From URL: `https://your-company.qtestnet.com/p/`**123**`/portal/...` |
+| `parent_id` | Open a folder in Test Design, look at URL: `...#id=`**456789**`&tab=testdesign` |
 
 ### Step 2: Test the connection
 
@@ -124,7 +124,7 @@ qtest ls -al "Omnia-2.X/Slurm Cluster"     # folders + test case titles
 
 **Output:**
 ```
-Project 183 / Omnia-2.X/Slurm Cluster
+Project 123 / Omnia-2.X/Slurm Cluster
 
 ├── [F] add-delete node
 ├── [F] Apptainer
@@ -150,7 +150,7 @@ Project 183 / Omnia-2.X/Slurm Cluster
 ```bash
 qtest add-tc                                # push template.yaml to parent_id in config
 qtest add-tc -t my_tests.yaml              # use a different template file
-qtest add-tc --parent-id 1273930            # override parent ID from config
+qtest add-tc --parent-id 456789            # override parent ID from config
 qtest add-tc --dry-run                      # validate and preview, don't push
 ```
 
@@ -166,8 +166,8 @@ Validation passed: 3 test case(s) in template.yaml
 
 Step 2: Pushing test cases
 
-  Parent ID : 1273930
-  Project   : 183
+  Parent ID : 456789
+  Project   : 123
   Count     : 3
 ------------------------------------------------------------
   [1] OK: TC-6659 - omnia_verify_slurm_cluster_health_after_reboot
