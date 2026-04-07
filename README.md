@@ -294,12 +294,10 @@ qtest_integrate/
 ├── template.yaml           # Your test cases to push
 ├── README.md               # This file
 ├── .gitignore
-├── qtest_cli/              # CLI source code
-│   ├── __init__.py
-│   └── main.py
 ├── rules.md                # Test case writing rules (Functional/Regression/Negative)
-├── engineering_spec.md     # Engineering spec template
-└── functional_spec.md      # Functional spec template
+└── qtest_cli/              # CLI source code
+    ├── __init__.py
+    └── main.py
 ```
 
 ---
@@ -309,10 +307,8 @@ qtest_integrate/
 | File | What it contains |
 |---|---|
 | `rules.md` | Rules for classifying test cases as Functional, Regression, or Negative |
-| `engineering_spec.md` | Template to document engineering specifications |
-| `functional_spec.md` | Template to document functional specifications |
 
-These help you write test cases systematically: fill the spec, follow the rules, write the YAML, push to qTest.
+Follow the rules, write the YAML, push to qTest.
 
 ---
 
