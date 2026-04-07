@@ -13,8 +13,7 @@
 #  limitations under the License.
 ---
 # qTest Configuration
-# Copy this file to config.yaml and fill in your values:
-#   cp config.yaml.example config.yaml
+# Update these values with your qTest instance details
 
 qtest:
   # Your qTest instance URL

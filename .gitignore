@@ -1,5 +1,5 @@
-# Sensitive config with API tokens
-config.yaml
+# Backup config with real tokens
+config.yaml.bak
 
 # Python
 __pycache__/
