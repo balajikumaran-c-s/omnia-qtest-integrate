@@ -1,0 +1,58 @@
+# qTest Test Case Template
+# ========================
+# Define test cases here. They will be added under parent_id from config.yaml.
+#
+# Fields:
+#   name          (required)  - Test case title
+#   description   (optional)  - What this test validates
+#   precondition  (optional)  - Prerequisites before running
+#   status        (optional)  - Design (default) | New | Ready | Approved | Draft
+#   type          (optional)  - Manual (default) | Automation | Functional | Regression
+#   steps         (optional)  - List of test steps with description + expected
+
+test_cases:
+
+  - name: "omnia_verify_slurm_cluster_health_after_reboot"
+    description: "Validate that all Slurm services recover correctly after a full cluster reboot"
+    precondition: "Slurm cluster is deployed and all nodes are in idle state"
+    status: "Design"
+    type: "Functional"
+    steps:
+      - description: "Reboot all compute nodes simultaneously"
+        expected: "All nodes reboot without errors"
+      - description: "Wait for nodes to come back online and run 'sinfo'"
+        expected: "All nodes show 'idle' state within 5 minutes"
+      - description: "Submit a test job: srun -N2 hostname"
+        expected: "Job completes successfully, returns correct hostnames"
+      - description: "Verify munge authentication: munge -n | unmunge"
+        expected: "Munge encode/decode succeeds on all nodes"
+
+  - name: "omnia_verify_nfs_mount_persistence_across_reboot"
+    description: "Ensure NFS mounts configured by Omnia persist after node reboot"
+    precondition: "NFS server is configured and mounts are active on compute nodes"
+    status: "Design"
+    type: "Functional"
+    steps:
+      - description: "Run 'df -h' on compute node, note NFS mounts"
+        expected: "NFS mounts are listed and accessible"
+      - description: "Reboot the compute node"
+        expected: "Node reboots successfully"
+      - description: "After reboot, run 'df -h' again"
+        expected: "Same NFS mounts are present and accessible"
+      - description: "Create a file on NFS mount and verify from another node"
+        expected: "File is visible from other nodes sharing the mount"
+
+  - name: "omnia_slurm_job_submission_as_ldap_user"
+    description: "Validate that an LDAP-authenticated user can submit and run Slurm jobs"
+    precondition: "LDAP is configured, test user exists, Slurm cluster is running"
+    status: "Design"
+    type: "Manual"
+    steps:
+      - description: "SSH to login node as LDAP user"
+        expected: "Login succeeds without password prompt (key-based or LDAP auth)"
+      - description: "Submit a batch job: sbatch test_job.sh"
+        expected: "Job is accepted and queued (job ID returned)"
+      - description: "Monitor job: squeue -u <ldap_user>"
+        expected: "Job shows RUNNING or COMPLETED status"
+      - description: "Check output file for correctness"
+        expected: "Output file contains expected results"
